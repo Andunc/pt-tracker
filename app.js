@@ -402,10 +402,10 @@ function renderReach() {
 function openModal(title, fieldsHtml, onSave, onDelete) {
   const root = document.getElementById("modalRoot");
   root.innerHTML = `
-    <div class="modal-overlay">
+    <div class="modal-overlay" id="modalOverlay">
       <div class="modal">
         <h3>${title}</h3>
-        <form id="modalForm">${fieldsHtml}</form>
+        <form id="modalForm" class="modal-form">${fieldsHtml}</form>
         <div class="modal-actions">
           ${onDelete ? '<button type="button" class="btn btn-danger" id="modalDelete">Delete</button>' : ""}
           <button type="button" class="btn btn-ghost" id="modalCancel">Cancel</button>
@@ -416,8 +416,17 @@ function openModal(title, fieldsHtml, onSave, onDelete) {
   document.getElementById("modalCancel").addEventListener("click", closeModal);
   if (onDelete) document.getElementById("modalDelete").addEventListener("click", () => { onDelete(); closeModal(); });
   document.getElementById("modalForm").addEventListener("submit", (e) => { e.preventDefault(); onSave(new FormData(e.target)); closeModal(); });
+  // Click the dark backdrop (not the card itself) to close without saving.
+  document.getElementById("modalOverlay").addEventListener("click", (e) => {
+    if (e.target.id === "modalOverlay") closeModal();
+  });
+  document.addEventListener("keydown", escCloseModal);
 }
-function closeModal() { document.getElementById("modalRoot").innerHTML = ""; }
+function escCloseModal(e) { if (e.key === "Escape") closeModal(); }
+function closeModal() {
+  document.getElementById("modalRoot").innerHTML = "";
+  document.removeEventListener("keydown", escCloseModal);
+}
 
 function openClientModal(c) {
   openModal(c ? "Edit Client" : "Add Client", `

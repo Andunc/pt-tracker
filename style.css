@@ -108,8 +108,16 @@ main{max-width:1100px;margin:0 auto;padding:18px 14px;}
 
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
 .modal{background:#fff;border-radius:var(--radius);padding:20px;width:100%;max-width:420px;max-height:90vh;overflow:auto;}
-.modal h3{margin-top:0;}
-.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
+.modal h3{margin:0 0 16px;font-size:1.15rem;}
+.modal-form{display:flex;flex-direction:column;gap:14px;}
+.modal-form label{display:flex;flex-direction:column;gap:5px;font-size:.82rem;color:var(--muted);font-weight:600;}
+.modal-form input,.modal-form select,.modal-form textarea{
+  font-size:.95rem;padding:9px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--ink);font-family:inherit;
+}
+.modal-form textarea{min-height:60px;resize:vertical;}
+.modal-form .checkbox-row{flex-direction:row;align-items:center;gap:8px;}
+.modal-form .checkbox-row input{width:auto;}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
 
 @media print{
   header,.tabs,#tab-reports h1,.report-tabs,.report-actions,#statementForm,#summaryForm{display:none !important;}
