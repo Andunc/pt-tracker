@@ -558,7 +558,8 @@ async function addSessionToCalendar(s) {
     start: { dateTime: startDate.toISOString() },
     end: { dateTime: end.toISOString() }
   };
-  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+  const calendarId = encodeURIComponent(CFG.CALENDAR_ID || "primary");
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`, {
     method: "POST",
     headers: { Authorization: `Bearer ${state.calendarToken.access_token}`, "Content-Type": "application/json" },
     body: JSON.stringify(event)
