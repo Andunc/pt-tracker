@@ -161,7 +161,28 @@ async function sheetsFetch(path, options = {}) {
 }
 
 function getValues(range) {
-  return sheetsFetch(`/values/${encodeURIComponent(range)}`).then(d => d.values || []);
+  // UNFORMATTED_VALUE + SERIAL_NUMBER: dates/times come back as raw Sheets
+  // serial numbers regardless of how the cell happens to be formatted or
+  // which locale the spreadsheet uses, so we can convert them ourselves
+  // consistently (this is what fixes "wonky" date/time fields).
+  return sheetsFetch(`/values/${encodeURIComponent(range)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`).then(d => d.values || []);
+}
+
+// Google Sheets date/time serial numbers count days since 1899-12-30.
+function serialToISODate(v) {
+  if (v === "" || v === null || v === undefined) return "";
+  if (typeof v === "string") return v.slice(0, 10); // already a plain string, leave as-is
+  const ms = Math.round(v) * 86400000;
+  const d = new Date(Date.UTC(1899, 11, 30) + ms);
+  return d.toISOString().slice(0, 10);
+}
+function serialToHHMM(v) {
+  if (v === "" || v === null || v === undefined) return "";
+  if (typeof v === "string") return v.slice(0, 5); // already a plain string, leave as-is
+  const totalMinutes = Math.round((v % 1) * 24 * 60);
+  const hh = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+  const mm = String(totalMinutes % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 function updateValues(range, values) {
   return sheetsFetch(`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`, {
@@ -196,17 +217,17 @@ async function loadAll() {
 
   state.sessions = sessionRows
     .map((r, i) => ({
-      rowIndex: i + 2, Date: r[0] || "", Time: r[1] || "", Client: r[2] || "",
+      rowIndex: i + 2, Date: serialToISODate(r[0]), Time: serialToHHMM(r[1]), Client: r[2] || "",
       Status: r[3] || "", Cost: parseFloat(r[4]) || 0, Notes: r[5] || "", ViaReach: !!(r[6] && String(r[6]).trim())
     }))
     .filter(s => s.Date && s.Client);
 
   state.payments = paymentRows
-    .map((r, i) => ({ rowIndex: i + 2, Date: r[0] || "", Client: r[1] || "", Amount: parseFloat(r[2]) || 0, Method: r[3] || "", Notes: r[4] || "" }))
+    .map((r, i) => ({ rowIndex: i + 2, Date: serialToISODate(r[0]), Client: r[1] || "", Amount: parseFloat(r[2]) || 0, Method: r[3] || "", Notes: r[4] || "" }))
     .filter(p => p.Date && p.Client);
 
   state.reachPayments = reachRows
-    .map((r, i) => ({ rowIndex: i + 5, Date: r[0] || "", Amount: parseFloat(r[1]) || 0, Notes: r[2] || "" }))
+    .map((r, i) => ({ rowIndex: i + 5, Date: serialToISODate(r[0]), Amount: parseFloat(r[1]) || 0, Notes: r[2] || "" }))
     .filter(p => p.Date);
 }
 
@@ -339,12 +360,18 @@ function populateClientDropdowns() {
 // ---------------------------------------------------------------------
 // Rendering: Sessions
 // ---------------------------------------------------------------------
+const SESSION_STATUSES = ["Scheduled", "Completed", "No-Show", "Cancelled"];
+
 function renderSessions() {
   const tbody = document.querySelector("#sessionsTable tbody");
   const rows = [...state.sessions].sort((a, b) => b.Date.localeCompare(a.Date));
   tbody.innerHTML = rows.map(s => `<tr>
     <td>${s.Date}</td><td>${s.Time || ""}</td><td>${s.Client}</td>
-    <td><span class="status-pill status-${s.Status.replace(/\s/g, "-")}">${s.Status}</span></td>
+    <td>
+      <select class="status-select status-${s.Status.replace(/\s/g, "-")}" data-status-session="${s.rowIndex}">
+        ${SESSION_STATUSES.map(st => `<option value="${st}" ${st === s.Status ? "selected" : ""}>${st}</option>`).join("")}
+      </select>
+    </td>
     <td>${fmtMoney(s.Cost)}</td><td>${s.ViaReach ? "Reach" : "-"}</td>
     <td>${s.Status === "Completed" && s.ViaReach ? fmtMoney(CFG.REACH_RATE || 10) : "-"}</td>
     <td>${s.Notes || ""}</td>
@@ -359,6 +386,14 @@ function renderSessions() {
   });
   tbody.querySelectorAll("[data-cal-session]").forEach(btn => {
     btn.addEventListener("click", () => addSessionToCalendar(state.sessions.find(x => x.rowIndex == btn.dataset.calSession)));
+  });
+  tbody.querySelectorAll("[data-status-session]").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      const rowIndex = sel.dataset.statusSession;
+      sel.disabled = true;
+      await updateValues(`Sessions!D${rowIndex}:D${rowIndex}`, [[sel.value]]);
+      await loadAll(); renderAll();
+    });
   });
 }
 
