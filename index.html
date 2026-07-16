@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PT Tracker</title>
+<link rel="icon" href="assets/kettlebell.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="assets/kettlebell.svg" class="brand-icon" alt="Reach">
+    <span>PT Tracker</span>
+  </div>
+  <div class="topbar-actions">
+    <button id="calendarBtn" class="btn btn-outline">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+      <span id="calendarBtnLabel">Connect Google Calendar</span>
+    </button>
+    <button id="signinBtn" class="btn btn-primary">Sign in with Google</button>
+    <button id="signoutBtn" class="btn btn-ghost hidden">Sign out</button>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="dashboard">Dashboard</button>
+  <button class="tab" data-tab="clients">Clients</button>
+  <button class="tab" data-tab="sessions">Sessions</button>
+  <button class="tab" data-tab="payments">Payments</button>
+  <button class="tab" data-tab="reach">Reach</button>
+  <button class="tab" data-tab="recurring">Recurring</button>
+  <button class="tab" data-tab="reports">Reports</button>
+</nav>
+
+<main id="app">
+
+  <div id="signedOutNotice" class="notice hidden">
+    Sign in with Google to load your data. Your sessions, clients and payments live in a Google Sheet so they stay in sync between your phone and laptop.
+  </div>
+
+  <div id="configNotice" class="notice notice-warn hidden">
+    Setup needed: open <code>config.js</code> and fill in your Google OAuth Client ID and Google Sheet ID. See README.md for step-by-step instructions.
+  </div>
+
+  <!-- DASHBOARD -->
+  <section id="tab-dashboard" class="tab-panel active">
+    <h1>Dashboard</h1>
+    <div class="card-grid">
+      <div class="card"><div class="card-label">Today's Sessions</div><div class="card-value" id="dashToday">-</div></div>
+      <div class="card"><div class="card-label">Active Clients</div><div class="card-value" id="dashActiveClients">-</div></div>
+      <div class="card"><div class="card-label">Revenue Earned This Month</div><div class="card-value" id="dashRevenueMonth">-</div></div>
+      <div class="card"><div class="card-label">Outstanding Balance</div><div class="card-value" id="dashOutstanding">-</div></div>
+      <div class="card card-reach"><div class="card-label"><img src="assets/kettlebell.svg" class="inline-icon" alt="">Owed to Reach</div><div class="card-value" id="dashOwedReach">-</div></div>
+      <div class="card"><div class="card-label">Pending Revenue (Scheduled)</div><div class="card-value" id="dashPending">-</div></div>
+      <div class="card"><div class="card-label">Revenue Received This Month</div><div class="card-value" id="dashReceivedMonth">-</div></div>
+    </div>
+
+    <h2>Upcoming Sessions</h2>
+    <div class="table-wrap"><table class="data-table" id="dashUpcomingTable"><thead><tr><th>Date</th><th>Time</th><th>Client</th><th>Cost</th></tr></thead><tbody></tbody></table></div>
+
+    <h2>Clients to Follow Up (14+ days since last session)</h2>
+    <div class="table-wrap"><table class="data-table" id="dashFollowupTable"><thead><tr><th>Client</th><th>Last Completed Session</th><th>Days Since</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- CLIENTS -->
+  <section id="tab-clients" class="tab-panel">
+    <div class="section-head"><h1>Clients</h1><button class="btn btn-primary" id="addClientBtn">+ Add Client</button></div>
+    <div class="table-wrap"><table class="data-table" id="clientsTable">
+      <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Notes</th><th>Total Charged</th><th>Total Paid</th><th>Balance Due</th><th>Last Completed</th><th>Days Since</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <!-- SESSIONS -->
+  <section id="tab-sessions" class="tab-panel">
+    <div class="section-head"><h1>Sessions</h1><button class="btn btn-primary" id="addSessionBtn">+ Add Session</button></div>
+    <div class="table-wrap"><table class="data-table" id="sessionsTable">
+      <thead><tr><th>Date</th><th>Time</th><th>Client</th><th>Status</th><th>Cost</th><th>Via Reach?</th><th>Reach Charge</th><th>Notes</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <!-- PAYMENTS -->
+  <section id="tab-payments" class="tab-panel">
+    <div class="section-head"><h1>Payments</h1><button class="btn btn-primary" id="addPaymentBtn">+ Log Payment</button></div>
+    <div class="table-wrap"><table class="data-table" id="paymentsTable">
+      <thead><tr><th>Date</th><th>Client</th><th>Amount</th><th>Method</th><th>Notes</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <!-- REACH -->
+  <section id="tab-reach" class="tab-panel">
+    <div class="section-head"><h1><img src="assets/kettlebell.svg" class="inline-icon" alt="">Reach</h1><button class="btn btn-primary" id="addReachPaymentBtn">+ Log Payment to Reach</button></div>
+    <div class="card-grid">
+      <div class="card card-reach"><div class="card-label">Currently Owed to Reach</div><div class="card-value" id="reachOwed">-</div></div>
+      <div class="card"><div class="card-label">Rate per Completed Session</div><div class="card-value" id="reachRate">-</div></div>
+    </div>
+    <h2>Payments Made to Reach</h2>
+    <div class="table-wrap"><table class="data-table" id="reachTable">
+      <thead><tr><th>Date</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <!-- RECURRING -->
+  <section id="tab-recurring" class="tab-panel">
+    <h1>Recurring Session Generator</h1>
+    <p class="hint">Generate a batch of sessions on a repeating schedule and add them straight to your Sessions sheet (and optionally to Google Calendar).</p>
+    <form id="recurringForm" class="form-grid">
+      <label>Client<select id="recClient" required></select></label>
+      <label>Start Date<input type="date" id="recStart" required></label>
+      <label>Time<input type="time" id="recTime"></label>
+      <label>Frequency
+        <select id="recFrequency">
+          <option value="7">Weekly</option>
+          <option value="14">Every 2 weeks</option>
+          <option value="1">Daily</option>
+          <option value="3">Every 3 days</option>
+        </select>
+      </label>
+      <label>Number of Sessions<input type="number" id="recCount" min="1" max="52" value="8" required></label>
+      <label>Cost per Session<input type="number" id="recCost" min="0" step="0.01" required></label>
+      <label class="span-2">Notes<input type="text" id="recNotes"></label>
+      <label class="span-2 checkbox-row"><input type="checkbox" id="recAddToCalendar"> Also create Google Calendar events for these</label>
+      <div class="span-2"><button type="submit" class="btn btn-primary">Generate &amp; Add Sessions</button></div>
+    </form>
+    <div id="recurringPreview"></div>
+  </section>
+
+  <!-- REPORTS -->
+  <section id="tab-reports" class="tab-panel">
+    <h1>Reports</h1>
+
+    <div class="report-tabs">
+      <button class="report-tab active" data-report="statement">Client Statement</button>
+      <button class="report-tab" data-report="summary">Business Summary</button>
+    </div>
+
+    <div id="report-statement" class="report-panel active">
+      <form id="statementForm" class="form-grid">
+        <label>Client<select id="stClient" required></select></label>
+        <label>Start Date<input type="date" id="stStart"></label>
+        <label>End Date<input type="date" id="stEnd"></label>
+        <div><button type="submit" class="btn btn-primary">Generate Statement</button></div>
+      </form>
+      <div id="statementOutput" class="report-output"></div>
+    </div>
+
+    <div id="report-summary" class="report-panel">
+      <form id="summaryForm" class="form-grid">
+        <label>Months to include<input type="number" id="sumMonths" min="1" max="36" value="12"></label>
+        <div><button type="submit" class="btn btn-primary">Generate Summary</button></div>
+      </form>
+      <div id="summaryOutput" class="report-output"></div>
+    </div>
+  </section>
+
+</main>
+
+<div id="modalRoot"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
