@@ -430,7 +430,11 @@ function openClientModal(c) {
     if (c) await updateValues(`Clients!A${c.rowIndex}:D${c.rowIndex}`, [row]);
     else await appendValues("Clients!A:D", [row]);
     await loadAll(); renderAll();
-  });
+  }, c ? async () => {
+    if (!confirm(`Delete ${c.Name}? Their past sessions and payments will stay in your records, but they'll be removed from the Clients list.`)) return;
+    await clearValues(`Clients!A${c.rowIndex}:D${c.rowIndex}`);
+    await loadAll(); renderAll();
+  } : null);
 }
 
 function openSessionModal(s) {
@@ -450,7 +454,10 @@ function openSessionModal(s) {
     if (s) await updateValues(`Sessions!A${s.rowIndex}:G${s.rowIndex}`, [row]);
     else await appendValues("Sessions!A:G", [row]);
     await loadAll(); renderAll();
-  }, s ? async () => { await clearValues(`Sessions!A${s.rowIndex}:G${s.rowIndex}`); await loadAll(); renderAll(); } : null);
+  }, s ? async () => {
+    if (!confirm("Delete this session?")) return;
+    await clearValues(`Sessions!A${s.rowIndex}:G${s.rowIndex}`); await loadAll(); renderAll();
+  } : null);
 }
 
 function openPaymentModal(p) {
@@ -467,7 +474,10 @@ function openPaymentModal(p) {
     if (p) await updateValues(`Payments!A${p.rowIndex}:E${p.rowIndex}`, [row]);
     else await appendValues("Payments!A:E", [row]);
     await loadAll(); renderAll();
-  }, p ? async () => { await clearValues(`Payments!A${p.rowIndex}:E${p.rowIndex}`); await loadAll(); renderAll(); } : null);
+  }, p ? async () => {
+    if (!confirm("Delete this payment?")) return;
+    await clearValues(`Payments!A${p.rowIndex}:E${p.rowIndex}`); await loadAll(); renderAll();
+  } : null);
 }
 
 function openReachPaymentModal(p) {
@@ -480,7 +490,10 @@ function openReachPaymentModal(p) {
     if (p) await updateValues(`Reach!A${p.rowIndex}:C${p.rowIndex}`, [row]);
     else await appendValues("Reach!A5:C", [row]);
     await loadAll(); renderAll();
-  }, p ? async () => { await clearValues(`Reach!A${p.rowIndex}:C${p.rowIndex}`); await loadAll(); renderAll(); } : null);
+  }, p ? async () => {
+    if (!confirm("Delete this Reach payment?")) return;
+    await clearValues(`Reach!A${p.rowIndex}:C${p.rowIndex}`); await loadAll(); renderAll();
+  } : null);
 }
 
 // ---------------------------------------------------------------------
