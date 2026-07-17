@@ -15,8 +15,10 @@ const state = {
   clients: [],            // [{Name,Phone,Email,Notes}]
   sessions: [],           // [{rowIndex,Date,Time,Client,Status,Cost,Notes,ViaReach}]
   payments: [],           // [{rowIndex,Date,Client,Amount,Method,Notes}]
-  reachPayments: []       // [{rowIndex,Date,Amount,Notes}]
+  reachPayments: [],      // [{rowIndex,Date,Amount,Notes}]
+  pending: []             // [{rowIndex,Name,Status,Phone,Email,LeadSource,LastContact,Notes}]
 };
+const PENDING_STATUSES = ["Pending", "Contacted", "Client", "Not Interested"];
 
 let sheetsTokenClient, calendarTokenClient;
 
@@ -121,6 +123,7 @@ function wireStaticUI() {
     });
   });
 
+  document.getElementById("addPendingBtn").addEventListener("click", () => openPendingModal());
   document.getElementById("addClientBtn").addEventListener("click", () => openClientModal());
   document.getElementById("addSessionBtn").addEventListener("click", () => openSessionModal());
   document.getElementById("addPaymentBtn").addEventListener("click", () => openPaymentModal());
@@ -204,16 +207,26 @@ function clearValues(range) {
 // Data loading
 // ---------------------------------------------------------------------
 async function loadAll() {
-  const [clientRows, sessionRows, paymentRows, reachRows] = await Promise.all([
+  const [clientRows, sessionRows, paymentRows, reachRows, pendingRows] = await Promise.all([
     getValues("Clients!A2:D1000"),
     getValues("Sessions!A2:G1000"),
     getValues("Payments!A2:E1000"),
-    getValues("Reach!A5:C1000")
+    getValues("Reach!A5:C1000"),
+    // The Pending tab is optional — older sheets won't have it yet, so
+    // don't let a missing tab break the rest of the app from loading.
+    getValues("Pending!A2:G1000").catch(() => [])
   ]);
 
   state.clients = clientRows
     .map((r, i) => ({ rowIndex: i + 2, Name: r[0] || "", Phone: r[1] || "", Email: r[2] || "", Notes: r[3] || "" }))
     .filter(c => c.Name);
+
+  state.pending = pendingRows
+    .map((r, i) => ({
+      rowIndex: i + 2, Name: r[0] || "", Status: r[1] || "Pending", Phone: r[2] || "", Email: r[3] || "",
+      LeadSource: r[4] || "", LastContact: serialToISODate(r[5]), Notes: r[6] || ""
+    }))
+    .filter(p => p.Name);
 
   state.sessions = sessionRows
     .map((r, i) => ({
@@ -232,6 +245,7 @@ async function loadAll() {
 }
 
 function renderAll() {
+  renderPending();
   renderClients();
   populateClientDropdowns();
   renderSessions();
@@ -322,6 +336,49 @@ function renderDashboard() {
   document.querySelector("#dashFollowupTable tbody").innerHTML = followup.map(x =>
     `<tr><td>${x.c.Name}</td><td>${x.stats.lastCompleted}</td><td>${x.stats.daysSince}</td></tr>`
   ).join("") || `<tr><td colspan="3">Nobody is overdue for a follow-up.</td></tr>`;
+}
+
+// ---------------------------------------------------------------------
+// Rendering: Pending Clients (leads)
+// ---------------------------------------------------------------------
+function renderPending() {
+  const tbody = document.querySelector("#pendingTable tbody");
+  const rows = [...state.pending].sort((a, b) => (b.LastContact || "").localeCompare(a.LastContact || ""));
+  tbody.innerHTML = rows.map(p => `<tr>
+    <td>${p.Name}</td>
+    <td>
+      <select class="status-select status-${(p.Status || "Pending").replace(/\s/g, "-")}" data-status-pending="${p.rowIndex}">
+        ${PENDING_STATUSES.map(st => `<option value="${st}" ${st === p.Status ? "selected" : ""}>${st}</option>`).join("")}
+      </select>
+    </td>
+    <td>${p.Phone || ""}</td><td>${p.Email || ""}</td><td>${p.LeadSource || ""}</td>
+    <td>${p.LastContact || "-"}</td><td>${p.Notes || ""}</td>
+    <td><button class="btn btn-small btn-ghost" data-edit-pending="${p.rowIndex}">Edit</button></td>
+  </tr>`).join("") || `<tr><td colspan="8">No pending clients yet. Click "+ Add Lead" to get started.</td></tr>`;
+
+  tbody.querySelectorAll("[data-edit-pending]").forEach(btn => {
+    btn.addEventListener("click", () => openPendingModal(state.pending.find(x => x.rowIndex == btn.dataset.editPending)));
+  });
+  tbody.querySelectorAll("[data-status-pending]").forEach(sel => {
+    sel.addEventListener("change", () => onPendingStatusChange(sel));
+  });
+}
+
+async function onPendingStatusChange(sel) {
+  const rowIndex = sel.dataset.statusPending;
+  const newStatus = sel.value;
+  const lead = state.pending.find(x => x.rowIndex == rowIndex);
+  if (!lead) return;
+  sel.disabled = true;
+
+  if (newStatus === "Client") {
+    await appendValues("Clients!A:D", [[lead.Name, lead.Phone, lead.Email, lead.Notes]]);
+    await clearValues(`Pending!A${rowIndex}:G${rowIndex}`);
+    alert(`${lead.Name} moved to Clients.`);
+  } else {
+    await updateValues(`Pending!B${rowIndex}:B${rowIndex}`, [[newStatus]]);
+  }
+  await loadAll(); renderAll();
 }
 
 // ---------------------------------------------------------------------
@@ -461,6 +518,36 @@ function escCloseModal(e) { if (e.key === "Escape") closeModal(); }
 function closeModal() {
   document.getElementById("modalRoot").innerHTML = "";
   document.removeEventListener("keydown", escCloseModal);
+}
+
+function openPendingModal(p) {
+  openModal(p ? "Edit Pending Client" : "Add Lead", `
+    <label>Name<input name="Name" required value="${p ? p.Name : ""}"></label>
+    <label>Status<select name="Status">${PENDING_STATUSES.map(st => `<option ${p && p.Status === st ? "selected" : (!p && st === "Pending" ? "selected" : "")}>${st}</option>`).join("")}</select></label>
+    <label>Phone<input name="Phone" value="${p ? p.Phone : ""}"></label>
+    <label>Email<input name="Email" type="email" value="${p ? p.Email : ""}"></label>
+    <label>Lead Source<input name="LeadSource" placeholder="e.g. Referral, Instagram, Reach" value="${p ? p.LeadSource : ""}"></label>
+    <label>Last Contact<input name="LastContact" type="date" value="${p ? p.LastContact : todayStr()}"></label>
+    <label>Notes / Communication Log<textarea name="Notes" placeholder="e.g. 7/16 texted about pricing, wants to start in August">${p ? p.Notes : ""}</textarea></label>
+  `, async (fd) => {
+    const status = fd.get("Status");
+    const row = [fd.get("Name"), status, fd.get("Phone"), fd.get("Email"), fd.get("LeadSource"), fd.get("LastContact"), fd.get("Notes")];
+    if (status === "Client") {
+      // Skip straight to Clients instead of saving back to Pending.
+      await appendValues("Clients!A:D", [[fd.get("Name"), fd.get("Phone"), fd.get("Email"), fd.get("Notes")]]);
+      if (p) await clearValues(`Pending!A${p.rowIndex}:G${p.rowIndex}`);
+      alert(`${fd.get("Name")} added to Clients.`);
+    } else if (p) {
+      await updateValues(`Pending!A${p.rowIndex}:G${p.rowIndex}`, [row]);
+    } else {
+      await appendValues("Pending!A:G", [row]);
+    }
+    await loadAll(); renderAll();
+  }, p ? async () => {
+    if (!confirm(`Delete ${p.Name} from Pending Clients?`)) return;
+    await clearValues(`Pending!A${p.rowIndex}:G${p.rowIndex}`);
+    await loadAll(); renderAll();
+  } : null);
 }
 
 function openClientModal(c) {

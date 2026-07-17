@@ -27,6 +27,7 @@
 
 <nav class="tabs" id="tabs">
   <button class="tab active" data-tab="dashboard">Dashboard</button>
+  <button class="tab" data-tab="pending">Pending</button>
   <button class="tab" data-tab="clients">Clients</button>
   <button class="tab" data-tab="sessions">Sessions</button>
   <button class="tab" data-tab="payments">Payments</button>
@@ -63,6 +64,16 @@
 
     <h2>Clients to Follow Up (14+ days since last session)</h2>
     <div class="table-wrap"><table class="data-table" id="dashFollowupTable"><thead><tr><th>Client</th><th>Last Completed Session</th><th>Days Since</th></tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <!-- PENDING (LEADS) -->
+  <section id="tab-pending" class="tab-panel">
+    <div class="section-head"><h1>Pending Clients</h1><button class="btn btn-primary" id="addPendingBtn">+ Add Lead</button></div>
+    <p class="hint">Change the Status dropdown to "Client" to move someone into your Clients list automatically.</p>
+    <div class="table-wrap"><table class="data-table" id="pendingTable">
+      <thead><tr><th>Name</th><th>Status</th><th>Phone</th><th>Email</th><th>Lead Source</th><th>Last Contact</th><th>Notes</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
   </section>
 
   <!-- CLIENTS -->
