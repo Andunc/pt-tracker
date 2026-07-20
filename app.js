@@ -242,6 +242,20 @@ async function loadAll() {
   state.reachPayments = reachRows
     .map((r, i) => ({ rowIndex: i + 5, Date: serialToISODate(r[0]), Amount: parseFloat(r[1]) || 0, Notes: r[2] || "" }))
     .filter(p => p.Date);
+
+  // Raw row counts (including any blank rows in between existing data) —
+  // used to calculate exactly which row a new entry should go to, instead
+  // of relying on the Sheets API's append/"find the table" guesswork,
+  // which can misfire when a sheet has blank rows mixed in.
+  state.rowCounts = {
+    clients: clientRows.length, sessions: sessionRows.length,
+    payments: paymentRows.length, reach: reachRows.length, pending: pendingRows.length
+  };
+}
+
+const SHEET_START_ROW = { clients: 2, sessions: 2, payments: 2, reach: 5, pending: 2 };
+function nextRow(kind) {
+  return SHEET_START_ROW[kind] + (state.rowCounts[kind] || 0);
 }
 
 function renderAll() {
@@ -372,7 +386,8 @@ async function onPendingStatusChange(sel) {
   sel.disabled = true;
 
   if (newStatus === "Client") {
-    await appendValues("Clients!A:D", [[lead.Name, lead.Phone, lead.Email, lead.Notes]]);
+    const r = nextRow("clients");
+    await updateValues(`Clients!A${r}:D${r}`, [[lead.Name, lead.Phone, lead.Email, lead.Notes]]);
     await clearValues(`Pending!A${rowIndex}:G${rowIndex}`);
     alert(`${lead.Name} moved to Clients.`);
   } else {
@@ -534,13 +549,15 @@ function openPendingModal(p) {
     const row = [fd.get("Name"), status, fd.get("Phone"), fd.get("Email"), fd.get("LeadSource"), fd.get("LastContact"), fd.get("Notes")];
     if (status === "Client") {
       // Skip straight to Clients instead of saving back to Pending.
-      await appendValues("Clients!A:D", [[fd.get("Name"), fd.get("Phone"), fd.get("Email"), fd.get("Notes")]]);
+      const cr = nextRow("clients");
+      await updateValues(`Clients!A${cr}:D${cr}`, [[fd.get("Name"), fd.get("Phone"), fd.get("Email"), fd.get("Notes")]]);
       if (p) await clearValues(`Pending!A${p.rowIndex}:G${p.rowIndex}`);
       alert(`${fd.get("Name")} added to Clients.`);
     } else if (p) {
       await updateValues(`Pending!A${p.rowIndex}:G${p.rowIndex}`, [row]);
     } else {
-      await appendValues("Pending!A:G", [row]);
+      const pr = nextRow("pending");
+      await updateValues(`Pending!A${pr}:G${pr}`, [row]);
     }
     await loadAll(); renderAll();
   }, p ? async () => {
@@ -559,7 +576,7 @@ function openClientModal(c) {
   `, async (fd) => {
     const row = [fd.get("Name"), fd.get("Phone"), fd.get("Email"), fd.get("Notes")];
     if (c) await updateValues(`Clients!A${c.rowIndex}:D${c.rowIndex}`, [row]);
-    else await appendValues("Clients!A:D", [row]);
+    else { const r = nextRow("clients"); await updateValues(`Clients!A${r}:D${r}`, [row]); }
     await loadAll(); renderAll();
   }, c ? async () => {
     if (!confirm(`Delete ${c.Name}? Their past sessions and payments will stay in your records, but they'll be removed from the Clients list.`)) return;
@@ -583,7 +600,7 @@ function openSessionModal(s) {
   `, async (fd) => {
     const row = [fd.get("Date"), fd.get("Time"), fd.get("Client"), fd.get("Status"), fd.get("Cost"), fd.get("Notes"), fd.get("ViaReach") ? "Reach" : ""];
     if (s) await updateValues(`Sessions!A${s.rowIndex}:G${s.rowIndex}`, [row]);
-    else await appendValues("Sessions!A:G", [row]);
+    else { const r = nextRow("sessions"); await updateValues(`Sessions!A${r}:G${r}`, [row]); }
     await loadAll(); renderAll();
   }, s ? async () => {
     if (!confirm("Delete this session?")) return;
@@ -603,7 +620,7 @@ function openPaymentModal(p) {
   `, async (fd) => {
     const row = [fd.get("Date"), fd.get("Client"), fd.get("Amount"), fd.get("Method"), fd.get("Notes")];
     if (p) await updateValues(`Payments!A${p.rowIndex}:E${p.rowIndex}`, [row]);
-    else await appendValues("Payments!A:E", [row]);
+    else { const r = nextRow("payments"); await updateValues(`Payments!A${r}:E${r}`, [row]); }
     await loadAll(); renderAll();
   }, p ? async () => {
     if (!confirm("Delete this payment?")) return;
@@ -619,7 +636,7 @@ function openReachPaymentModal(p) {
   `, async (fd) => {
     const row = [fd.get("Date"), fd.get("Amount"), fd.get("Notes")];
     if (p) await updateValues(`Reach!A${p.rowIndex}:C${p.rowIndex}`, [row]);
-    else await appendValues("Reach!A5:C", [row]);
+    else { const r = nextRow("reach"); await updateValues(`Reach!A${r}:C${r}`, [row]); }
     await loadAll(); renderAll();
   }, p ? async () => {
     if (!confirm("Delete this Reach payment?")) return;
@@ -681,7 +698,9 @@ async function onGenerateRecurring(e) {
     rows.push([dstr, time, client, "Scheduled", cost, notes, ""]);
   }
 
-  await appendValues("Sessions!A:G", rows);
+  const startRow = nextRow("sessions");
+  const endRow = startRow + rows.length - 1;
+  await updateValues(`Sessions!A${startRow}:G${endRow}`, rows);
 
   if (addToCal) {
     if (!state.calendarToken || state.calendarToken.expires_at <= Date.now()) {
