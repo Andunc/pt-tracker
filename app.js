@@ -16,7 +16,8 @@ const state = {
   sessions: [],           // [{rowIndex,Date,Time,Client,Status,Cost,Notes,ViaReach}]
   payments: [],           // [{rowIndex,Date,Client,Amount,Method,Notes}]
   reachPayments: [],      // [{rowIndex,Date,Amount,Notes}]
-  pending: []             // [{rowIndex,Name,Status,Phone,Email,LeadSource,LastContact,Notes}]
+  pending: [],            // [{rowIndex,Name,Status,Phone,Email,LeadSource,LastContact,Notes}]
+  expenses: []            // [{rowIndex,Date,Category,Amount,Notes}]
 };
 const PENDING_STATUSES = ["Pending", "Contacted", "Client", "Not Interested"];
 
@@ -128,10 +129,12 @@ function wireStaticUI() {
   document.getElementById("addSessionBtn").addEventListener("click", () => openSessionModal());
   document.getElementById("addPaymentBtn").addEventListener("click", () => openPaymentModal());
   document.getElementById("addReachPaymentBtn").addEventListener("click", () => openReachPaymentModal());
+  document.getElementById("addExpenseBtn").addEventListener("click", () => openExpenseModal());
 
   document.getElementById("recurringForm").addEventListener("submit", onGenerateRecurring);
   document.getElementById("statementForm").addEventListener("submit", onGenerateStatement);
   document.getElementById("summaryForm").addEventListener("submit", onGenerateSummary);
+  document.getElementById("expensesReportForm").addEventListener("submit", onGenerateExpensesReport);
 }
 
 function updateCalendarButton() {
@@ -207,14 +210,15 @@ function clearValues(range) {
 // Data loading
 // ---------------------------------------------------------------------
 async function loadAll() {
-  const [clientRows, sessionRows, paymentRows, reachRows, pendingRows] = await Promise.all([
+  const [clientRows, sessionRows, paymentRows, reachRows, pendingRows, expenseRows] = await Promise.all([
     getValues("Clients!A2:D1000"),
     getValues("Sessions!A2:G1000"),
     getValues("Payments!A2:E1000"),
     getValues("Reach!A5:C1000"),
-    // The Pending tab is optional — older sheets won't have it yet, so
-    // don't let a missing tab break the rest of the app from loading.
-    getValues("Pending!A2:G1000").catch(() => [])
+    // Pending and Expenses are optional tabs — older sheets won't have
+    // them yet, so don't let a missing tab break the rest of the app.
+    getValues("Pending!A2:G1000").catch(() => []),
+    getValues("Expenses!A2:D1000").catch(() => [])
   ]);
 
   state.clients = clientRows
@@ -243,17 +247,22 @@ async function loadAll() {
     .map((r, i) => ({ rowIndex: i + 5, Date: serialToISODate(r[0]), Amount: parseFloat(r[1]) || 0, Notes: r[2] || "" }))
     .filter(p => p.Date);
 
+  state.expenses = expenseRows
+    .map((r, i) => ({ rowIndex: i + 2, Date: serialToISODate(r[0]), Category: r[1] || "", Amount: parseFloat(r[2]) || 0, Notes: r[3] || "" }))
+    .filter(e => e.Date);
+
   // Raw row counts (including any blank rows in between existing data) —
   // used to calculate exactly which row a new entry should go to, instead
   // of relying on the Sheets API's append/"find the table" guesswork,
   // which can misfire when a sheet has blank rows mixed in.
   state.rowCounts = {
     clients: clientRows.length, sessions: sessionRows.length,
-    payments: paymentRows.length, reach: reachRows.length, pending: pendingRows.length
+    payments: paymentRows.length, reach: reachRows.length, pending: pendingRows.length,
+    expenses: expenseRows.length
   };
 }
 
-const SHEET_START_ROW = { clients: 2, sessions: 2, payments: 2, reach: 5, pending: 2 };
+const SHEET_START_ROW = { clients: 2, sessions: 2, payments: 2, reach: 5, pending: 2, expenses: 2 };
 function nextRow(kind) {
   return SHEET_START_ROW[kind] + (state.rowCounts[kind] || 0);
 }
@@ -265,7 +274,24 @@ function renderAll() {
   renderSessions();
   renderPayments();
   renderReach();
+  renderExpenses();
+  populateExpenseCategoryDropdowns();
   renderDashboard();
+}
+
+function expenseCategories() {
+  const used = state.expenses.map(e => e.Category).filter(Boolean);
+  const defaults = CFG.EXPENSE_CATEGORIES || [];
+  return [...new Set([...defaults, ...used])];
+}
+
+function populateExpenseCategoryDropdowns() {
+  const cats = expenseCategories();
+  const el = document.getElementById("expCategory");
+  if (!el) return;
+  const current = el.value;
+  el.innerHTML = `<option value="">All categories</option>` + cats.map(c => `<option>${c}</option>`).join("");
+  if (current) el.value = current;
 }
 
 // ---------------------------------------------------------------------
@@ -307,13 +333,18 @@ function monthlyOverview(numMonths) {
     const completed = sessionsInMonth.filter(s => s.Status === "Completed");
     const scheduled = sessionsInMonth.filter(s => s.Status === "Scheduled");
     const paymentsInMonth = state.payments.filter(p => monthKey(p.Date) === m.key);
+    const expensesInMonth = state.expenses.filter(x => monthKey(x.Date) === m.key);
+    const revenueEarned = completed.reduce((s, x) => s + x.Cost, 0);
+    const totalExpenses = expensesInMonth.reduce((s, x) => s + x.Amount, 0);
     return {
       ...m,
       sessionsCompleted: completed.length,
-      revenueEarned: completed.reduce((s, x) => s + x.Cost, 0),
+      revenueEarned,
       sessionsScheduled: scheduled.length,
       pendingRevenue: scheduled.reduce((s, x) => s + x.Cost, 0),
-      revenueReceived: paymentsInMonth.reduce((s, x) => s + x.Amount, 0)
+      revenueReceived: paymentsInMonth.reduce((s, x) => s + x.Amount, 0),
+      totalExpenses,
+      netIncome: revenueEarned - totalExpenses
     };
   });
 }
@@ -330,6 +361,7 @@ function renderDashboard() {
   const outstanding = state.clients.reduce((sum, c) => sum + Math.max(0, clientStats(c.Name).balanceDue), 0);
   const pending = state.sessions.filter(s => s.Status === "Scheduled").reduce((s, x) => s + x.Cost, 0);
   const receivedMonth = state.payments.filter(p => monthKey(p.Date) === thisMonth).reduce((s, x) => s + x.Amount, 0);
+  const expensesMonth = state.expenses.filter(x => monthKey(x.Date) === thisMonth).reduce((s, x) => s + x.Amount, 0);
 
   document.getElementById("dashToday").textContent = todaysSessions.length;
   document.getElementById("dashActiveClients").textContent = activeClients;
@@ -338,6 +370,8 @@ function renderDashboard() {
   document.getElementById("dashOwedReach").textContent = fmtMoney(reachOwed());
   document.getElementById("dashPending").textContent = fmtMoney(pending);
   document.getElementById("dashReceivedMonth").textContent = fmtMoney(receivedMonth);
+  document.getElementById("dashExpensesMonth").textContent = fmtMoney(expensesMonth);
+  document.getElementById("dashNetMonth").textContent = fmtMoney(revenueMonth - expensesMonth);
 
   const upcoming = state.sessions.filter(s => s.Status === "Scheduled" && s.Date >= today).sort((a, b) => a.Date.localeCompare(b.Date)).slice(0, 10);
   document.querySelector("#dashUpcomingTable tbody").innerHTML = upcoming.map(s =>
@@ -504,6 +538,26 @@ function renderReach() {
 }
 
 // ---------------------------------------------------------------------
+// Rendering: Expenses
+// ---------------------------------------------------------------------
+function renderExpenses() {
+  const thisMonth = todayStr().slice(0, 7);
+  const monthTotal = state.expenses.filter(e => monthKey(e.Date) === thisMonth).reduce((s, x) => s + x.Amount, 0);
+  document.getElementById("expensesMonthTotal").textContent = fmtMoney(monthTotal);
+
+  const tbody = document.querySelector("#expensesTable tbody");
+  const rows = [...state.expenses].sort((a, b) => b.Date.localeCompare(a.Date));
+  tbody.innerHTML = rows.map(e => `<tr>
+    <td>${e.Date}</td><td>${e.Category || ""}</td><td>${fmtMoney(e.Amount)}</td><td>${e.Notes || ""}</td>
+    <td><button class="btn btn-small btn-ghost" data-edit-expense="${e.rowIndex}">Edit</button></td>
+  </tr>`).join("") || `<tr><td colspan="5">No expenses logged yet.</td></tr>`;
+
+  tbody.querySelectorAll("[data-edit-expense]").forEach(btn => {
+    btn.addEventListener("click", () => openExpenseModal(state.expenses.find(x => x.rowIndex == btn.dataset.editExpense)));
+  });
+}
+
+// ---------------------------------------------------------------------
 // Modals (generic small form modal)
 // ---------------------------------------------------------------------
 function openModal(title, fieldsHtml, onSave, onDelete) {
@@ -644,6 +698,27 @@ function openReachPaymentModal(p) {
   } : null);
 }
 
+function openExpenseModal(e) {
+  const cats = expenseCategories();
+  openModal(e ? "Edit Expense" : "Add Expense", `
+    <label>Date<input name="Date" type="date" required value="${e ? e.Date : todayStr()}"></label>
+    <label>Category
+      <input name="Category" list="expenseCategoryOptions" required value="${e ? e.Category : ""}" placeholder="Pick or type a new one">
+      <datalist id="expenseCategoryOptions">${cats.map(c => `<option value="${c}">`).join("")}</datalist>
+    </label>
+    <label>Amount<input name="Amount" type="number" step="0.01" required value="${e ? e.Amount : ""}"></label>
+    <label>Notes<textarea name="Notes" placeholder="e.g. vendor, what it was for">${e ? e.Notes : ""}</textarea></label>
+  `, async (fd) => {
+    const row = [fd.get("Date"), fd.get("Category"), fd.get("Amount"), fd.get("Notes")];
+    if (e) await updateValues(`Expenses!A${e.rowIndex}:D${e.rowIndex}`, [row]);
+    else { const r = nextRow("expenses"); await updateValues(`Expenses!A${r}:D${r}`, [row]); }
+    await loadAll(); renderAll();
+  }, e ? async () => {
+    if (!confirm("Delete this expense?")) return;
+    await clearValues(`Expenses!A${e.rowIndex}:D${e.rowIndex}`); await loadAll(); renderAll();
+  } : null);
+}
+
 // ---------------------------------------------------------------------
 // Google Calendar
 // ---------------------------------------------------------------------
@@ -764,18 +839,55 @@ function onGenerateSummary(e) {
   const thisMonth = today.slice(0, 7);
   const revenueMonth = state.sessions.filter(s => s.Status === "Completed" && monthKey(s.Date) === thisMonth).reduce((s, x) => s + x.Cost, 0);
   const outstanding = state.clients.reduce((sum, c) => sum + Math.max(0, clientStats(c.Name).balanceDue), 0);
+  const expensesMonth = state.expenses.filter(x => monthKey(x.Date) === thisMonth).reduce((s, x) => s + x.Amount, 0);
 
   document.getElementById("summaryOutput").innerHTML = `
     <h2 style="margin-top:0;">Business Summary</h2>
     <p><strong>Generated:</strong> ${today}</p>
     <p><strong>Active Clients:</strong> ${state.clients.length} &nbsp;&nbsp;
        <strong>Revenue This Month:</strong> ${fmtMoney(revenueMonth)} &nbsp;&nbsp;
+       <strong>Expenses This Month:</strong> ${fmtMoney(expensesMonth)} &nbsp;&nbsp;
+       <strong>Net Income This Month:</strong> ${fmtMoney(revenueMonth - expensesMonth)}<br>
        <strong>Outstanding Balance:</strong> ${fmtMoney(outstanding)} &nbsp;&nbsp;
        <strong>Owed to Reach:</strong> ${fmtMoney(reachOwed())}</p>
     <h3>Monthly Overview</h3>
-    <table><thead><tr><th>Month</th><th>Sessions Completed</th><th>Revenue Earned</th><th>Sessions Scheduled</th><th>Pending Revenue</th><th>Revenue Received</th></tr></thead>
+    <table><thead><tr><th>Month</th><th>Sessions Completed</th><th>Revenue Earned</th><th>Sessions Scheduled</th><th>Pending Revenue</th><th>Revenue Received</th><th>Expenses</th><th>Net Income</th></tr></thead>
     <tbody>
-      ${overview.map(m => `<tr><td>${m.label}</td><td>${m.sessionsCompleted}</td><td>${fmtMoney(m.revenueEarned)}</td><td>${m.sessionsScheduled}</td><td>${fmtMoney(m.pendingRevenue)}</td><td>${fmtMoney(m.revenueReceived)}</td></tr>`).join("")}
+      ${overview.map(m => `<tr><td>${m.label}</td><td>${m.sessionsCompleted}</td><td>${fmtMoney(m.revenueEarned)}</td><td>${m.sessionsScheduled}</td><td>${fmtMoney(m.pendingRevenue)}</td><td>${fmtMoney(m.revenueReceived)}</td><td>${fmtMoney(m.totalExpenses)}</td><td>${fmtMoney(m.netIncome)}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="report-actions"><button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button></div>
+  `;
+}
+
+function onGenerateExpensesReport(e) {
+  e.preventDefault();
+  const category = document.getElementById("expCategory").value;
+  const start = document.getElementById("expStart").value;
+  const end = document.getElementById("expEnd").value;
+
+  let rows = [...state.expenses];
+  if (category) rows = rows.filter(x => x.Category === category);
+  if (start) rows = rows.filter(x => x.Date >= start);
+  if (end) rows = rows.filter(x => x.Date <= end);
+  rows.sort((a, b) => a.Date.localeCompare(b.Date));
+
+  const total = rows.reduce((s, x) => s + x.Amount, 0);
+  const byCategory = {};
+  rows.forEach(x => { byCategory[x.Category || "(none)"] = (byCategory[x.Category || "(none)"] || 0) + x.Amount; });
+  const categoryRows = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+  const period = (start || end) ? `${start || "earliest"} – ${end || "today"}` : "All time";
+
+  document.getElementById("expensesReportOutput").innerHTML = `
+    <h2 style="margin-top:0;">Expenses Report</h2>
+    <p><strong>Category:</strong> ${category || "All categories"} &nbsp;&nbsp; <strong>Period:</strong> ${period}</p>
+    <p><strong>Total Expenses:</strong> ${fmtMoney(total)}</p>
+    <h3>By Category</h3>
+    <table><thead><tr><th>Category</th><th>Total</th></tr></thead><tbody>
+      ${categoryRows.map(([cat, amt]) => `<tr><td>${cat}</td><td>${fmtMoney(amt)}</td></tr>`).join("") || '<tr><td colspan="2">No expenses in this period.</td></tr>'}
+    </tbody></table>
+    <h3>All Expenses in Period</h3>
+    <table><thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th></tr></thead><tbody>
+      ${rows.map(x => `<tr><td>${x.Date}</td><td>${x.Category}</td><td>${fmtMoney(x.Amount)}</td><td>${x.Notes || ""}</td></tr>`).join("") || '<tr><td colspan="4">No expenses in this period.</td></tr>'}
     </tbody></table>
     <div class="report-actions"><button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button></div>
   `;

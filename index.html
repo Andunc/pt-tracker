@@ -34,6 +34,7 @@
   <button class="tab" data-tab="sessions">Sessions</button>
   <button class="tab" data-tab="payments">Payments</button>
   <button class="tab" data-tab="reach">Reach</button>
+  <button class="tab" data-tab="expenses">Expenses</button>
   <button class="tab" data-tab="recurring">Recurring</button>
   <button class="tab" data-tab="reports">Reports</button>
 </nav>
@@ -59,6 +60,8 @@
       <div class="card card-reach"><div class="card-label"><img src="assets/kettlebell.svg" class="inline-icon" alt="">Owed to Reach</div><div class="card-value" id="dashOwedReach">-</div></div>
       <div class="card"><div class="card-label">Pending Revenue (Scheduled)</div><div class="card-value" id="dashPending">-</div></div>
       <div class="card"><div class="card-label">Revenue Received This Month</div><div class="card-value" id="dashReceivedMonth">-</div></div>
+      <div class="card"><div class="card-label">Expenses This Month</div><div class="card-value" id="dashExpensesMonth">-</div></div>
+      <div class="card"><div class="card-label">Net Income This Month</div><div class="card-value" id="dashNetMonth">-</div></div>
     </div>
 
     <h2>Upcoming Sessions</h2>
@@ -119,6 +122,18 @@
     </table></div>
   </section>
 
+  <!-- EXPENSES -->
+  <section id="tab-expenses" class="tab-panel">
+    <div class="section-head"><h1>Expenses</h1><button class="btn btn-primary" id="addExpenseBtn">+ Add Expense</button></div>
+    <div class="card-grid">
+      <div class="card"><div class="card-label">Expenses This Month</div><div class="card-value" id="expensesMonthTotal">-</div></div>
+    </div>
+    <div class="table-wrap"><table class="data-table" id="expensesTable">
+      <thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
   <!-- RECURRING -->
   <section id="tab-recurring" class="tab-panel">
     <h1>Recurring Session Generator</h1>
@@ -151,6 +166,7 @@
     <div class="report-tabs">
       <button class="report-tab active" data-report="statement">Client Statement</button>
       <button class="report-tab" data-report="summary">Business Summary</button>
+      <button class="report-tab" data-report="expenses">Expenses</button>
     </div>
 
     <div id="report-statement" class="report-panel active">
@@ -169,6 +185,16 @@
         <div><button type="submit" class="btn btn-primary">Generate Summary</button></div>
       </form>
       <div id="summaryOutput" class="report-output"></div>
+    </div>
+
+    <div id="report-expenses" class="report-panel">
+      <form id="expensesReportForm" class="form-grid">
+        <label>Category<select id="expCategory"><option value="">All categories</option></select></label>
+        <label>Start Date<input type="date" id="expStart"></label>
+        <label>End Date<input type="date" id="expEnd"></label>
+        <div><button type="submit" class="btn btn-primary">Generate Report</button></div>
+      </form>
+      <div id="expensesReportOutput" class="report-output"></div>
     </div>
   </section>
 

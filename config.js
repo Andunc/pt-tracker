@@ -21,5 +21,13 @@ window.PT_CONFIG = {
   // calendar's ID to use a dedicated one instead. Find a calendar's ID at
   // Google Calendar → Settings → (pick the calendar under "Settings for
   // my calendars") → "Integrate calendar" → Calendar ID.
-  CALENDAR_ID: "5ee1caba5a4b78096269d33d5af93fe1ae758f31dae41800c8ae746b240f3a38@group.calendar.google.com"
+  CALENDAR_ID: "primary",
+
+  // Starting list of expense categories offered when you add an expense.
+  // Type a category that's not on this list and it's remembered too —
+  // this is just a helpful starting point, not a hard limit. Edit freely.
+  EXPENSE_CATEGORIES: [
+    "Equipment", "Facility / Rent", "Software & Apps", "Marketing",
+    "Insurance", "Continuing Education", "Supplies", "Travel", "Reach Fees", "Other"
+  ]
 };
