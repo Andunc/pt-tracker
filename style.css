@@ -92,6 +92,17 @@ main{max-width:1100px;margin:0 auto;padding:18px 14px;}
 .status-Client{background:#e2f1e8;color:var(--primary-dark);}
 .status-Not-Interested{background:#eee;color:#777;}
 
+.todo-add-row{display:flex;gap:8px;margin-bottom:16px;}
+.todo-add-row input{flex:1;font-size:.95rem;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--ink);font-family:inherit;}
+.todo-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;}
+.todo-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;}
+.todo-item input[type="checkbox"]{width:19px;height:19px;flex-shrink:0;cursor:pointer;accent-color:var(--primary);}
+.todo-item .todo-text{flex:1;font-size:.95rem;word-break:break-word;}
+.todo-item.done{opacity:.6;}
+.todo-item.done .todo-text{text-decoration:line-through;color:var(--muted);}
+.todo-item .todo-delete{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;line-height:1;padding:4px 6px;}
+.todo-item .todo-delete:hover{color:var(--danger);}
+
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
 .form-grid label{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--muted);font-weight:600;}
 .form-grid input,.form-grid select,.form-grid textarea{

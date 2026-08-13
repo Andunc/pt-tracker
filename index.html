@@ -35,6 +35,7 @@
   <button class="tab" data-tab="payments">Payments</button>
   <button class="tab" data-tab="reach">Reach</button>
   <button class="tab" data-tab="expenses">Expenses</button>
+  <button class="tab" data-tab="todo">To-Do</button>
   <button class="tab" data-tab="recurring">Recurring</button>
   <button class="tab" data-tab="reports">Reports</button>
 </nav>
@@ -129,9 +130,19 @@
       <div class="card"><div class="card-label">Expenses This Month</div><div class="card-value" id="expensesMonthTotal">-</div></div>
     </div>
     <div class="table-wrap"><table class="data-table" id="expensesTable">
-      <thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+      <thead><tr><th>Date</th><th>Category</th><th>Paid To</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
       <tbody></tbody>
     </table></div>
+  </section>
+
+  <!-- TO-DO -->
+  <section id="tab-todo" class="tab-panel">
+    <h1>To-Do</h1>
+    <form id="todoAddForm" class="todo-add-row">
+      <input type="text" id="todoNewTask" placeholder="Add a task…" required>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+    <ul class="todo-list" id="todoList"></ul>
   </section>
 
   <!-- RECURRING -->

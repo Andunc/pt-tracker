@@ -17,7 +17,8 @@ const state = {
   payments: [],           // [{rowIndex,Date,Client,Amount,Method,Notes}]
   reachPayments: [],      // [{rowIndex,Date,Amount,Notes}]
   pending: [],            // [{rowIndex,Name,Status,Phone,Email,LeadSource,LastContact,Notes}]
-  expenses: []            // [{rowIndex,Date,Category,Amount,Notes}]
+  expenses: [],           // [{rowIndex,Date,Category,PaidTo,Amount,Notes}]
+  todos: []               // [{rowIndex,Task,Done,Created}]
 };
 const PENDING_STATUSES = ["Pending", "Contacted", "Client", "Not Interested"];
 
@@ -135,6 +136,7 @@ function wireStaticUI() {
   document.getElementById("statementForm").addEventListener("submit", onGenerateStatement);
   document.getElementById("summaryForm").addEventListener("submit", onGenerateSummary);
   document.getElementById("expensesReportForm").addEventListener("submit", onGenerateExpensesReport);
+  document.getElementById("todoAddForm").addEventListener("submit", onAddTodo);
 }
 
 function updateCalendarButton() {
@@ -210,15 +212,16 @@ function clearValues(range) {
 // Data loading
 // ---------------------------------------------------------------------
 async function loadAll() {
-  const [clientRows, sessionRows, paymentRows, reachRows, pendingRows, expenseRows] = await Promise.all([
+  const [clientRows, sessionRows, paymentRows, reachRows, pendingRows, expenseRows, todoRows] = await Promise.all([
     getValues("Clients!A2:D1000"),
     getValues("Sessions!A2:G1000"),
     getValues("Payments!A2:E1000"),
     getValues("Reach!A5:C1000"),
-    // Pending and Expenses are optional tabs — older sheets won't have
-    // them yet, so don't let a missing tab break the rest of the app.
+    // Pending, Expenses and ToDo are optional tabs — older sheets won't
+    // have them yet, so don't let a missing tab break the rest of the app.
     getValues("Pending!A2:G1000").catch(() => []),
-    getValues("Expenses!A2:D1000").catch(() => [])
+    getValues("Expenses!A2:E1000").catch(() => []),
+    getValues("ToDo!A2:C1000").catch(() => [])
   ]);
 
   state.clients = clientRows
@@ -248,8 +251,12 @@ async function loadAll() {
     .filter(p => p.Date);
 
   state.expenses = expenseRows
-    .map((r, i) => ({ rowIndex: i + 2, Date: serialToISODate(r[0]), Category: r[1] || "", Amount: parseFloat(r[2]) || 0, Notes: r[3] || "" }))
+    .map((r, i) => ({ rowIndex: i + 2, Date: serialToISODate(r[0]), Category: r[1] || "", PaidTo: r[2] || "", Amount: parseFloat(r[3]) || 0, Notes: r[4] || "" }))
     .filter(e => e.Date);
+
+  state.todos = todoRows
+    .map((r, i) => ({ rowIndex: i + 2, Task: r[0] || "", Done: String(r[1]).toUpperCase() === "TRUE", Created: serialToISODate(r[2]) }))
+    .filter(t => t.Task);
 
   // Raw row counts (including any blank rows in between existing data) —
   // used to calculate exactly which row a new entry should go to, instead
@@ -258,11 +265,11 @@ async function loadAll() {
   state.rowCounts = {
     clients: clientRows.length, sessions: sessionRows.length,
     payments: paymentRows.length, reach: reachRows.length, pending: pendingRows.length,
-    expenses: expenseRows.length
+    expenses: expenseRows.length, todos: todoRows.length
   };
 }
 
-const SHEET_START_ROW = { clients: 2, sessions: 2, payments: 2, reach: 5, pending: 2, expenses: 2 };
+const SHEET_START_ROW = { clients: 2, sessions: 2, payments: 2, reach: 5, pending: 2, expenses: 2, todos: 2 };
 function nextRow(kind) {
   return SHEET_START_ROW[kind] + (state.rowCounts[kind] || 0);
 }
@@ -276,6 +283,7 @@ function renderAll() {
   renderReach();
   renderExpenses();
   populateExpenseCategoryDropdowns();
+  renderTodos();
   renderDashboard();
 }
 
@@ -548,13 +556,61 @@ function renderExpenses() {
   const tbody = document.querySelector("#expensesTable tbody");
   const rows = [...state.expenses].sort((a, b) => b.Date.localeCompare(a.Date));
   tbody.innerHTML = rows.map(e => `<tr>
-    <td>${e.Date}</td><td>${e.Category || ""}</td><td>${fmtMoney(e.Amount)}</td><td>${e.Notes || ""}</td>
+    <td>${e.Date}</td><td>${e.Category || ""}</td><td>${e.PaidTo || ""}</td><td>${fmtMoney(e.Amount)}</td><td>${e.Notes || ""}</td>
     <td><button class="btn btn-small btn-ghost" data-edit-expense="${e.rowIndex}">Edit</button></td>
-  </tr>`).join("") || `<tr><td colspan="5">No expenses logged yet.</td></tr>`;
+  </tr>`).join("") || `<tr><td colspan="6">No expenses logged yet.</td></tr>`;
 
   tbody.querySelectorAll("[data-edit-expense]").forEach(btn => {
     btn.addEventListener("click", () => openExpenseModal(state.expenses.find(x => x.rowIndex == btn.dataset.editExpense)));
   });
+}
+
+// ---------------------------------------------------------------------
+// Rendering: To-Do
+// ---------------------------------------------------------------------
+function renderTodos() {
+  const list = document.getElementById("todoList");
+  // Not done first (oldest first), done items pushed to the bottom.
+  const rows = [...state.todos].sort((a, b) => {
+    if (a.Done !== b.Done) return a.Done ? 1 : -1;
+    return (a.Created || "").localeCompare(b.Created || "") || a.rowIndex - b.rowIndex;
+  });
+  list.innerHTML = rows.map(t => `
+    <li class="todo-item ${t.Done ? "done" : ""}">
+      <input type="checkbox" data-toggle-todo="${t.rowIndex}" ${t.Done ? "checked" : ""}>
+      <span class="todo-text">${t.Task}</span>
+      <button class="todo-delete" data-delete-todo="${t.rowIndex}" title="Delete">✕</button>
+    </li>`
+  ).join("") || `<li class="hint">Nothing on your list yet — add one above.</li>`;
+
+  list.querySelectorAll("[data-toggle-todo]").forEach(cb => {
+    cb.addEventListener("change", async () => {
+      const rowIndex = cb.dataset.toggleTodo;
+      cb.disabled = true;
+      await updateValues(`ToDo!B${rowIndex}:B${rowIndex}`, [[cb.checked ? "TRUE" : "FALSE"]]);
+      await loadAll(); renderAll();
+    });
+  });
+  list.querySelectorAll("[data-delete-todo]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const rowIndex = btn.dataset.deleteTodo;
+      const t = state.todos.find(x => x.rowIndex == rowIndex);
+      if (!confirm(`Delete "${t ? t.Task : "this task"}"?`)) return;
+      await clearValues(`ToDo!A${rowIndex}:C${rowIndex}`);
+      await loadAll(); renderAll();
+    });
+  });
+}
+
+async function onAddTodo(e) {
+  e.preventDefault();
+  const input = document.getElementById("todoNewTask");
+  const task = input.value.trim();
+  if (!task) return;
+  const r = nextRow("todos");
+  await updateValues(`ToDo!A${r}:C${r}`, [[task, "FALSE", todayStr()]]);
+  input.value = "";
+  await loadAll(); renderAll();
 }
 
 // ---------------------------------------------------------------------
@@ -706,16 +762,17 @@ function openExpenseModal(e) {
       <input name="Category" list="expenseCategoryOptions" required value="${e ? e.Category : ""}" placeholder="Pick or type a new one">
       <datalist id="expenseCategoryOptions">${cats.map(c => `<option value="${c}">`).join("")}</datalist>
     </label>
+    <label>Paid To<input name="PaidTo" placeholder="e.g. company or vendor name" value="${e ? e.PaidTo : ""}"></label>
     <label>Amount<input name="Amount" type="number" step="0.01" required value="${e ? e.Amount : ""}"></label>
-    <label>Notes<textarea name="Notes" placeholder="e.g. vendor, what it was for">${e ? e.Notes : ""}</textarea></label>
+    <label>Notes<textarea name="Notes" placeholder="what it was for">${e ? e.Notes : ""}</textarea></label>
   `, async (fd) => {
-    const row = [fd.get("Date"), fd.get("Category"), fd.get("Amount"), fd.get("Notes")];
-    if (e) await updateValues(`Expenses!A${e.rowIndex}:D${e.rowIndex}`, [row]);
-    else { const r = nextRow("expenses"); await updateValues(`Expenses!A${r}:D${r}`, [row]); }
+    const row = [fd.get("Date"), fd.get("Category"), fd.get("PaidTo"), fd.get("Amount"), fd.get("Notes")];
+    if (e) await updateValues(`Expenses!A${e.rowIndex}:E${e.rowIndex}`, [row]);
+    else { const r = nextRow("expenses"); await updateValues(`Expenses!A${r}:E${r}`, [row]); }
     await loadAll(); renderAll();
   }, e ? async () => {
     if (!confirm("Delete this expense?")) return;
-    await clearValues(`Expenses!A${e.rowIndex}:D${e.rowIndex}`); await loadAll(); renderAll();
+    await clearValues(`Expenses!A${e.rowIndex}:E${e.rowIndex}`); await loadAll(); renderAll();
   } : null);
 }
 
@@ -886,8 +943,8 @@ function onGenerateExpensesReport(e) {
       ${categoryRows.map(([cat, amt]) => `<tr><td>${cat}</td><td>${fmtMoney(amt)}</td></tr>`).join("") || '<tr><td colspan="2">No expenses in this period.</td></tr>'}
     </tbody></table>
     <h3>All Expenses in Period</h3>
-    <table><thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th></tr></thead><tbody>
-      ${rows.map(x => `<tr><td>${x.Date}</td><td>${x.Category}</td><td>${fmtMoney(x.Amount)}</td><td>${x.Notes || ""}</td></tr>`).join("") || '<tr><td colspan="4">No expenses in this period.</td></tr>'}
+    <table><thead><tr><th>Date</th><th>Category</th><th>Paid To</th><th>Amount</th><th>Notes</th></tr></thead><tbody>
+      ${rows.map(x => `<tr><td>${x.Date}</td><td>${x.Category}</td><td>${x.PaidTo || ""}</td><td>${fmtMoney(x.Amount)}</td><td>${x.Notes || ""}</td></tr>`).join("") || '<tr><td colspan="5">No expenses in this period.</td></tr>'}
     </tbody></table>
     <div class="report-actions"><button class="btn btn-primary" onclick="window.print()">Print / Save as PDF</button></div>
   `;

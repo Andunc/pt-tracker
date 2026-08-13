@@ -5,7 +5,8 @@ A lightweight web app version of your Personal Training Tracker spreadsheet. It 
 - **Dashboard** — today's sessions, active clients, revenue, outstanding balance, what's owed to Reach
 - **Pending** — track leads before they become clients (contact info, lead source, communication notes); change their status to "Client" and they're moved into your Clients list automatically
 - **Clients / Sessions / Payments / Reach** — the same data as your spreadsheet, editable from the app
-- **Expenses** — log expenses under categories you define (or type new ones on the fly), with a Dashboard tile and a dedicated report for total spend by category and date range, plus Net Income on the Dashboard and Business Summary report
+- **Expenses** — log expenses under categories you define (or type new ones on the fly), with who you paid, a Dashboard tile, and a dedicated report for total spend by category and date range, plus Net Income on the Dashboard and Business Summary report
+- **To-Do** — a simple checklist; check something off and it automatically sorts to the bottom
 - **Connect Google Calendar** button — adds sessions straight to your calendar
 - **Recurring Session Generator** — replaces the "copy/paste rows" workflow
 - **Reports** — client statements, a monthly business summary, and an expenses report, all printable/exportable to PDF
@@ -21,10 +22,12 @@ No coding experience needed for setup, but there are a few one-time steps with G
 1. Go to [sheets.google.com](https://sheets.google.com) and create a new spreadsheet (or import your existing `pt-tracker-spreadsheet to show claude.xlsx`: **File → Import → Upload → Replace spreadsheet**).
 2. Make sure it has tabs named exactly: **Clients**, **Sessions**, **Payments**, **Reach** (your existing file already has these).
 3. For the Pending Clients feature, add one more tab named exactly **Pending**, with this header row in row 1 (A1:G1): `Name | Status | Phone | Email | Lead Source | Last Contact Date | Notes`. Leave the rows below blank — the app fills them in.
-4. For expense tracking, add one more tab named exactly **Expenses**, with this header row in row 1 (A1:D1): `Date | Category | Amount | Notes`. Leave the rows below blank.
-5. Copy the **Sheet ID** out of the URL — the long string between `/d/` and `/edit`:
+4. For expense tracking, add one more tab named exactly **Expenses**, with this header row in row 1 (A1:E1): `Date | Category | Paid To | Amount | Notes`.
+   - **Already had an Expenses tab from before "Paid To" existed?** Don't retype the header — instead right-click the **C** column header (your current "Amount" column) → **Insert 1 column left** → type `Paid To` in C1. That shifts your existing Amount/Notes data over automatically without losing anything.
+5. For the To-Do list, add one more tab named exactly **ToDo**, with this header row in row 1 (A1:C1): `Task | Done | Created Date`. Leave the rows below blank.
+6. Copy the **Sheet ID** out of the URL — the long string between `/d/` and `/edit`:
    `https://docs.google.com/spreadsheets/d/`**`THIS_IS_YOUR_SHEET_ID`**`/edit`
-6. Keep that ID handy for Step 3.
+7. Keep that ID handy for Step 3.
 
 ## Step 2 — Create a Google Cloud project + OAuth Client ID
 
