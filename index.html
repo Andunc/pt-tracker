@@ -125,7 +125,12 @@
 
   <!-- EXPENSES -->
   <section id="tab-expenses" class="tab-panel">
-    <div class="section-head"><h1>Expenses</h1><button class="btn btn-primary" id="addExpenseBtn">+ Add Expense</button></div>
+    <div class="section-head"><h1>Expenses</h1>
+      <div>
+        <button class="btn btn-outline" id="addRecurringExpenseBtn" style="color:var(--primary-dark);border-color:var(--primary-dark);">+ Add Recurring Expense</button>
+        <button class="btn btn-primary" id="addExpenseBtn">+ Add Expense</button>
+      </div>
+    </div>
     <div class="card-grid">
       <div class="card"><div class="card-label">Expenses This Month</div><div class="card-value" id="expensesMonthTotal">-</div></div>
     </div>

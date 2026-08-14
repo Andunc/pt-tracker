@@ -131,6 +131,7 @@ function wireStaticUI() {
   document.getElementById("addPaymentBtn").addEventListener("click", () => openPaymentModal());
   document.getElementById("addReachPaymentBtn").addEventListener("click", () => openReachPaymentModal());
   document.getElementById("addExpenseBtn").addEventListener("click", () => openExpenseModal());
+  document.getElementById("addRecurringExpenseBtn").addEventListener("click", () => openRecurringExpenseModal());
 
   document.getElementById("recurringForm").addEventListener("submit", onGenerateRecurring);
   document.getElementById("statementForm").addEventListener("submit", onGenerateStatement);
@@ -774,6 +775,52 @@ function openExpenseModal(e) {
     if (!confirm("Delete this expense?")) return;
     await clearValues(`Expenses!A${e.rowIndex}:E${e.rowIndex}`); await loadAll(); renderAll();
   } : null);
+}
+
+// Adds `n` months to a date string, keeping the same day of month where
+// possible (e.g. the 31st rolls back to the last day of shorter months).
+function addMonthsClamped(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00");
+  const day = d.getDate();
+  const target = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  const lastDayOfTargetMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(day, lastDayOfTargetMonth));
+  return target.toISOString().slice(0, 10);
+}
+
+function openRecurringExpenseModal() {
+  const cats = expenseCategories();
+  openModal("Add Recurring Expense", `
+    <label>Category
+      <input name="Category" list="expenseCategoryOptions" required placeholder="Pick or type a new one">
+      <datalist id="expenseCategoryOptions">${cats.map(c => `<option value="${c}">`).join("")}</datalist>
+    </label>
+    <label>Paid To<input name="PaidTo" placeholder="e.g. company or vendor name"></label>
+    <label>Amount<input name="Amount" type="number" step="0.01" required></label>
+    <label>Notes<textarea name="Notes" placeholder="what it's for"></textarea></label>
+    <label>First Charge Date<input name="Start" type="date" required value="${todayStr()}"></label>
+    <label>Repeat For<select name="Months">
+      ${[3, 6, 12, 24].map(n => `<option value="${n}" ${n === 12 ? "selected" : ""}>${n} months</option>`).join("")}
+    </select></label>
+    <p class="hint">Adds one expense per month on the same day, e.g. rent, a subscription, or insurance. You can always delete extra months later from the Expenses tab.</p>
+  `, async (fd) => {
+    const category = fd.get("Category");
+    const paidTo = fd.get("PaidTo");
+    const amount = fd.get("Amount");
+    const notes = fd.get("Notes");
+    const start = fd.get("Start");
+    const months = parseInt(fd.get("Months"), 10) || 12;
+
+    const rows = [];
+    for (let i = 0; i < months; i++) {
+      rows.push([addMonthsClamped(start, i), category, paidTo, amount, notes]);
+    }
+    const startRow = nextRow("expenses");
+    const endRow = startRow + rows.length - 1;
+    await updateValues(`Expenses!A${startRow}:E${endRow}`, rows);
+    alert(`Added ${months} months of "${category}" expenses.`);
+    await loadAll(); renderAll();
+  });
 }
 
 // ---------------------------------------------------------------------
